@@ -3,64 +3,71 @@ import numpy as np
 import sys
 
 
-def get_closest_cent_index(pixel):
+def get_closest_cent_index(cents, pixel):
     current_dist, index_cent = 195075, None
+
+    # calculate 
     for p in range(num_of_cent):
-        #print(pow(z[p][0]+pixel[0], 2) + pow(z[p][1]+pixel[1], 2) + pow(z[p][2]+pixel[2], 2))
-        dist = pow(z[p][0]+pixel[0], 2) + pow(z[p][1]+pixel[1], 2) + pow(z[p][2]+pixel[2], 2)
+        dist = np.linalg.norm(cents[p] - pixel)
         if dist < current_dist:
             current_dist = dist
             index_cent = p
     return index_cent
 
-def create_cent_by_average():
-    first, second, third = 0.0, 0.0, 0.0
-    new_cent = []
+
+def create_cent_by_average(pixels_list, centroids):
+    new_cents = np.empty((0, 3))
     for i in range(num_of_cent):
-        for m in range(len(pixels_cent_list[i])):
 
-            #print("iteration " + str(m))
-            first, second, third = first + pixels_cent_list[i][m][0],\
-                                   second + pixels_cent_list[i][m][1], \
-                                   third + pixels_cent_list[i][m][2]
+        sum = pixels_list[i].sum(axis=0)
 
-        #print(i)
-        if len(pixels_cent_list[i]) != 0:
-            new_cent.append([first / len(pixels_cent_list[i]), second / len(pixels_cent_list[i]), third / len(pixels_cent_list[i])])
-    return np.array(new_cent)
+        if pixels_list[i].size != 0:
+            average = np.divide(sum, pixels_list[i].size / LENGTH_OF_VECTOR)
+        else:
+            average = centroids[i]
 
-image_fname, centroids_fname, out_fname = sys.argv[1], sys.argv[2], sys.argv[3]
-z = np.loadtxt(centroids_fname)
-#print(z)
-orig_pixels = plt.imread(image_fname)
-pixels = orig_pixels.astype(float)/255
-#print(pixels)
-pixels = pixels.reshape(-1, 3)
+        average = average.round(4)
+        new_cents = np.concatenate((new_cents, [average]))
+    return new_cents
 
 
-#print(pixels)
-#print(z[0])
-#print(pixels[0])
-num_of_cent = z.shape[0]
-num_of_pixels = pixels.shape[0]
+if __name__ == "__main__":
 
-# # creating 2d list for the pixels that will be classified
-pixels_cent_list = []
-#print("num_of_cent = " + str(num_of_cent))
-for i in range(num_of_cent):
-    #print("i = " + str(i))
-    pixels_cent_list.append([])
+    MAX_ITERATIONS = 20
+    LENGTH_OF_VECTOR = 3
 
-MAX_ITERATIONS = 20
+    ##############################
+    image_fname, centroids_fname, out_fname = sys.argv[1], sys.argv[2], sys.argv[3]
+    z = np.loadtxt(centroids_fname)
+    orig_pixels = plt.imread(image_fname)
+    pixels = orig_pixels.astype(float)/255
+    pixels = pixels.reshape(-1, 3)
+    ##############################
 
-for j in range(MAX_ITERATIONS):
-    for k in range(num_of_pixels):
-        current_pixel = pixels[k]
-        #if k == 0 and j == 1:
-        #    print(k)
-        closest_cent_index = get_closest_cent_index(current_pixel)
-        pixels_cent_list[closest_cent_index].append(current_pixel)
-    av = create_cent_by_average()
+    num_of_cent = z.shape[0]
+    num_of_pixels = pixels.shape[0]
 
-    z = av
-    print(z)
+    f = open(out_fname, "w")
+
+    for iter in range(MAX_ITERATIONS):
+
+        # creating 2d list for the pixels that will be classified
+        pixels_cent_list = []
+        for i in range(num_of_cent):
+            pixels_cent_list.append(np.empty((0, 3)))
+
+        for k in range(num_of_pixels):
+            current_pixel = pixels[k]
+            closest_cent_index = get_closest_cent_index(z, current_pixel)
+            pixels_cent_list[closest_cent_index] = np.concatenate((pixels_cent_list[closest_cent_index], [current_pixel]))
+
+        new_z = create_cent_by_average(pixels_cent_list, z)
+
+        f.write(f"[iter {iter}]:{','.join([str(i) for i in new_z])}" + "\n")
+
+        if np.array_equal(z, new_z):
+            break
+
+        z = new_z
+
+    f.close()
